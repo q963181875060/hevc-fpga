@@ -1,0 +1,58 @@
+package tencsbac;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.custom.CustomManager;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.CPUTypes;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.EngineInterface;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.InterfaceParam;
+
+public class TEncSbacManager extends CustomManager {
+
+	private static final String s_kernelName = "TEncSbacKernel";
+
+	public TEncSbacManager(TEncSbacEngineParameters engineParameters) {
+		super(engineParameters);
+		Kernel kernel = new TEncSbacKernel(makeKernelParameters(s_kernelName));
+		KernelBlock block = addKernel(kernel);
+		config.setDefaultStreamClockFrequency(120);
+		for (String inputName: block.getAllInputs())
+			block.getInput(inputName).connect(addStreamFromCPU(inputName));
+		for (String outputName: block.getAllOutputs())
+			addStreamToCPU(outputName).connect(block.getOutput(outputName));
+
+		createSLiCinterface(modeDefault());
+
+		configBuild(engineParameters);
+	}
+
+	private static EngineInterface modeDefault() {
+		EngineInterface engine_interface = new EngineInterface();
+		InterfaceParam N = engine_interface.addParam("N", CPUTypes.INT);
+		InterfaceParam loopLength = engine_interface.getAutoLoopOffset(s_kernelName, "loopLength");
+
+		engine_interface.setTicks(s_kernelName, (N)*(loopLength+1));
+		engine_interface.setStream("input", CPUTypes.INT32, N * CPUTypes.INT32.sizeInBytes());
+		engine_interface.setStream("output", CPUTypes.INT32, N * CPUTypes.INT32.sizeInBytes());
+
+		//engine_interface.setStream("ivlLow", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		//engine_interface.setStream("ivlCurrRange", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		//engine_interface.setStream("bitsLeft", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+
+		return engine_interface;
+	}
+
+	private void configBuild(TEncSbacEngineParameters params) {
+		BuildConfig buildConfig = getBuildConfig();
+		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		buildConfig.setMPPRParallelism(params.getMPPRThreads());
+		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+	}
+
+	public static void main(String[] args) {
+		TEncSbacManager manager = new TEncSbacManager(new TEncSbacEngineParameters(args));
+		manager.build();
+	}
+}

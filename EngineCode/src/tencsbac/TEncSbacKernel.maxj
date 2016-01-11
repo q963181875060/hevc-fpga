@@ -1,0 +1,114 @@
+package tencsbac;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Mem;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Stream.OffsetExpr;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+
+class TEncSbacKernel extends Kernel {
+
+	static final int CONTEXT_TABLE_SIZE = 202;
+	static final int CONTEXT_TABLE_BITS = 7;
+
+	private static final double c_initContextTable[] = {2,29,49,1,1,1,1,1,9,1,1,1,1,9,38,2,1,1,1,1,1,1,1,1,1,1,1,1,21,29,1,1,1,14,18,22,1,1,14,18,18,1,62,37,82,29,21,21,9,5,5,14,6,26,6,42,9,29,70,14,9,42,9,29,70,14,9,42,9,29,70,14,9,29,13,2,22,22,30,50,30,50,14,50,2,21,50,2,21,21,5,5,6,9,13,14,9,41,13,10,21,61,41,21,18,26,22,38,1,1,1,1,1,1,1,1,1,1,1,1,5,5,6,9,13,14,9,41,13,10,21,61,41,21,18,26,22,38,1,1,1,1,1,1,1,1,1,1,1,1,13,46,34,18,13,30,18,2,14,98,78,46,2,42,38,30,13,70,42,22,13,10,38,18,18,14,50,26,30,30,1,14,29,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+
+	static final int LPS_TABLE_SIZE = 64 * 4;
+	static final int LPS_TABLE_BITS = 8;
+	private static final double c_lpsTable[] = { 128, 176, 208, 240, 128, 167,
+		197, 227, 128, 158, 187, 216, 123, 150, 178, 205, 116, 142, 169,
+		195, 111, 135, 160, 185, 105, 128, 152, 175, 100, 122, 144, 166,
+		95, 116, 137, 158, 90, 110, 130, 150, 85, 104, 123, 142, 81, 99,
+		117, 135, 77, 94, 111, 128, 73, 89, 105, 122, 69, 85, 100, 116, 66,
+		80, 95, 110, 62, 76, 90, 104, 59, 72, 86, 99, 56, 69, 81, 94, 53,
+		65, 77, 89, 51, 62, 73, 85, 48, 59, 69, 80, 46, 56, 66, 76, 43, 53,
+		63, 72, 41, 50, 59, 69, 39, 48, 56, 65, 37, 45, 54, 62, 35, 43, 51,
+		59, 33, 41, 48, 56, 32, 39, 46, 53, 30, 37, 43, 50, 29, 35, 41, 48,
+		27, 33, 39, 45, 26, 31, 37, 43, 24, 30, 35, 41, 23, 28, 33, 39, 22,
+		27, 32, 37, 21, 26, 30, 35, 20, 24, 29, 33, 19, 23, 27, 31, 18, 22,
+		26, 30, 17, 21, 25, 28, 16, 20, 23, 27, 15, 19, 22, 25, 14, 18, 21,
+		24, 14, 17, 20, 23, 13, 16, 19, 22, 12, 15, 18, 21, 12, 14, 17, 20,
+		11, 14, 16, 19, 11, 13, 15, 18, 10, 12, 15, 17, 10, 12, 14, 16, 9,
+		11, 13, 15, 9, 11, 12, 14, 8, 10, 12, 14, 8, 9, 11, 13, 7, 9, 11,
+		12, 7, 9, 10, 12, 7, 8, 10, 11, 6, 8, 9, 11, 6, 7, 9, 10, 6, 7, 8,
+		9, 2, 2, 2, 2 };
+
+	static final int NEXT_STATE_TABLE_SIZE = 128 * 2;
+	static final int NEXT_STATE_BITS = 7;
+	private static final double c_nextState[] = { 2, 1, 0, 3, 4, 0, 1, 5, 6, 2,
+		3, 7, 8, 4, 5, 9, 10, 4, 5, 11, 12, 8, 9, 13, 14, 8, 9, 15, 16, 10,
+		11, 17, 18, 12, 13, 19, 20, 14, 15, 21, 22, 16, 17, 23, 24, 18, 19,
+		25, 26, 18, 19, 27, 28, 22, 23, 29, 30, 22, 23, 31, 32, 24, 25, 33,
+		34, 26, 27, 35, 36, 26, 27, 37, 38, 30, 31, 39, 40, 30, 31, 41, 42,
+		32, 33, 43, 44, 32, 33, 45, 46, 36, 37, 47, 48, 36, 37, 49, 50, 38,
+		39, 51, 52, 38, 39, 53, 54, 42, 43, 55, 56, 42, 43, 57, 58, 44, 45,
+		59, 60, 44, 45, 61, 62, 46, 47, 63, 64, 48, 49, 65, 66, 48, 49, 67,
+		68, 50, 51, 69, 70, 52, 53, 71, 72, 52, 53, 73, 74, 54, 55, 75, 76,
+		54, 55, 77, 78, 56, 57, 79, 80, 58, 59, 81, 82, 58, 59, 83, 84, 60,
+		61, 85, 86, 60, 61, 87, 88, 60, 61, 89, 90, 62, 63, 91, 92, 64, 65,
+		93, 94, 64, 65, 95, 96, 66, 67, 97, 98, 66, 67, 99, 100, 66, 67,
+		101, 102, 68, 69, 103, 104, 68, 69, 105, 106, 70, 71, 107, 108, 70,
+		71, 109, 110, 70, 71, 111, 112, 72, 73, 113, 114, 72, 73, 115, 116,
+		72, 73, 117, 118, 74, 75, 119, 120, 74, 75, 121, 122, 74, 75, 123,
+		124, 76, 77, 125, 124, 76, 77, 125, 126, 126, 127, 127 };
+
+	static final int NEXT_BITS_TABLE_SIZE = LPS_TABLE_SIZE;
+	static final int NEXT_BITS_BITS = 4;
+	private static final double c_nextBits[] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 2, 1, 1,
+			2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2,
+			2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2,
+			3, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 3, 2, 3, 3,
+			3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+			4, 3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 4, 4, 3, 3, 4, 4, 3, 3, 4, 4,
+			3, 3, 4, 4, 3, 3, 4, 4, 4, 3, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+			4, 4, 4, 4, 4, 4, 4, 4, 5, 4, 4, 4, 5, 4, 4, 4, 5, 4, 4, 4, 5, 4,
+			4, 4, 5, 5, 4, 4, 5, 5, 4, 4, 5, 5, 4, 4, 5, 5, 5, 4, 5, 5, 5, 4,
+			5, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5,
+			5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 6, 5, 5, 6, 6, 5, 5,
+			7, 7, 7, 7 };
+
+	static final int TOTAL_BITS = 64;
+
+	static final int TP_ENC_BIN_____BIT = 0;
+	static final int TP_ENC_BIN_EP__BIT = 1;
+	static final int TP_ENC_BIN_TRM_BIT = 2;
+	static final int TP_ENC_BIN_AP1_BIT = 3;//finish
+	static final int TP_ENC_BIN_SIG_BIT = 4;//bottom finish, write(1,1),
+	static final int TP_ENC_BIN_AP0_BIT = 5;//alignZero
+
+	protected TEncSbacKernel(KernelParameters parameters) {
+		super(parameters);
+
+		Memory<DFEVar> loopVaraiblesTable = mem.alloc(dfeRawBits(TOTAL_BITS), 2);
+		loopVaraiblesTable.mapToCPU("loopVaraiblesTable");
+
+
+		OffsetExpr loopLength = stream.makeOffsetAutoLoop("loopLength");
+		DFEVar loopLengthVal = loopLength.getDFEVar(this, dfeUInt(8));
+		DFEVar count = control.count.simpleCounter(8, loopLengthVal+1);
+		DFEVar isRead = count.eq(0);
+		DFEVar isWrite = count.eq(loopLengthVal);
+
+		DFEVar input = io.input("input", dfeInt(32),isRead);
+
+		DFEVar afterLoopVariables = dfeRawBits(TOTAL_BITS).newInstance(this);
+		DFEVar afterLoopVariablesWithOffset = stream.offset(afterLoopVariables, -loopLength);
+		DFEVar beforeLoopVariables = loopVaraiblesTable.port(constant.var(dfeUInt(1),0), afterLoopVariablesWithOffset, isWrite, Mem.RamWriteMode.READ_FIRST);
+
+		DFEVar num_non_zero  = beforeLoopVariables.slice(0, 5).cast(dfeUInt(5))+1;
+		DFEVar c1 = beforeLoopVariables.slice(5,2).cast(dfeUInt(2));
+		DFEVar hasOutput_coeff_abs_level_greater2_flag = beforeLoopVariables.slice(7, 1).cast(dfeUInt(1));
+		DFEVar coeffSigns = beforeLoopVariables.slice(8, 16).cast(dfeUInt(16));
+		DFEVar iFirstCoeff2 = beforeLoopVariables.slice(24, 1).cast(dfeUInt(1));
+		DFEVar uiGoRiceParam = beforeLoopVariables.slice(25, 3).cast(dfeUInt(3));
+
+		io.output("output",input.cast(dfeInt(32)) + num_non_zero.cast(dfeInt(32)), dfeInt(32), isWrite);
+
+		afterLoopVariables <== constant.var(dfeUInt(36), 0).cat(uiGoRiceParam).cat(iFirstCoeff2).cat(coeffSigns).cat(hasOutput_coeff_abs_level_greater2_flag).cat(c1).cat(num_non_zero);
+
+
+	}
+
+}
