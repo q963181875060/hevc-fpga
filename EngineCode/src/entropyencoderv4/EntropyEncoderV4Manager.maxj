@@ -1,0 +1,65 @@
+package entropyencoderv4;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.managers.BuildConfig;
+import com.maxeler.maxcompiler.v2.managers.custom.CustomManager;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.CPUTypes;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.EngineInterface;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.InterfaceParam;
+
+public class EntropyEncoderV4Manager extends CustomManager {
+
+	private static final String s_kernelName = "EntropyEncoderV4Kernel";
+
+	public EntropyEncoderV4Manager(EntropyEncoderV4EngineParameters engineParameters) {
+		super(engineParameters);
+		Kernel v4Kernel = new EntropyEncoderV4KernelWithFinish(makeKernelParameters(s_kernelName));
+		KernelBlock block = addKernel(v4Kernel);
+		config.setDefaultStreamClockFrequency(120);
+		for (String inputName: block.getAllInputs())
+			block.getInput(inputName).connect(addStreamFromCPU(inputName));
+		for (String outputName: block.getAllOutputs())
+			addStreamToCPU(outputName).connect(block.getOutput(outputName));
+
+		createSLiCinterface(modeDefault());
+
+		configBuild(engineParameters);
+	}
+
+	private static EngineInterface modeDefault() {
+		EngineInterface engine_interface = new EngineInterface();
+		InterfaceParam N = engine_interface.addParam("N", CPUTypes.INT);
+		InterfaceParam loopLength = engine_interface.getAutoLoopOffset(s_kernelName, "loopLength");
+
+		engine_interface.setTicks(s_kernelName, (N)*(loopLength+1));
+		engine_interface.setStream("input", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("hasOutput0", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("output0", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("numOutput1", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("output1", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("hasOutput2", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("output2", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("hasOutput3", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		engine_interface.setStream("output3", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+
+		//engine_interface.setStream("ivlLow", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		//engine_interface.setStream("ivlCurrRange", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+		//engine_interface.setStream("bitsLeft", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
+
+		return engine_interface;
+	}
+
+	private void configBuild(EntropyEncoderV4EngineParameters params) {
+		BuildConfig buildConfig = getBuildConfig();
+		buildConfig.setMPPRCostTableSearchRange(params.getMPPRStartCT(), params.getMPPREndCT());
+		buildConfig.setMPPRParallelism(params.getMPPRThreads());
+		buildConfig.setMPPRRetryNearMissesThreshold(params.getMPPRRetryThreshold());
+
+	}
+
+	public static void main(String[] args) {
+		EntropyEncoderV4Manager manager = new EntropyEncoderV4Manager(new EntropyEncoderV4EngineParameters(args));
+		manager.build();
+	}
+}

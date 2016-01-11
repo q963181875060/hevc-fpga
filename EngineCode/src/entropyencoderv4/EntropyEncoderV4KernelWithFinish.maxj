@@ -1,0 +1,238 @@
+package entropyencoderv4;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Mem;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Stream.OffsetExpr;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.utils.MathUtils;
+
+class EntropyEncoderV4KernelWithFinish extends Kernel {
+
+	static final int CONTEXT_TABLE_SIZE = 202;
+	static final int CONTEXT_TABLE_BITS = 7;
+
+	private static final double c_initContextTable[] = {2,29,49,1,1,1,1,1,9,1,1,1,1,9,38,2,1,1,1,1,1,1,1,1,1,1,1,1,21,29,1,1,1,14,18,22,1,1,14,18,18,1,62,37,82,29,21,21,9,5,5,14,6,26,6,42,9,29,70,14,9,42,9,29,70,14,9,42,9,29,70,14,9,29,13,2,22,22,30,50,30,50,14,50,2,21,50,2,21,21,5,5,6,9,13,14,9,41,13,10,21,61,41,21,18,26,22,38,1,1,1,1,1,1,1,1,1,1,1,1,5,5,6,9,13,14,9,41,13,10,21,61,41,21,18,26,22,38,1,1,1,1,1,1,1,1,1,1,1,1,13,46,34,18,13,30,18,2,14,98,78,46,2,42,38,30,13,70,42,22,13,10,38,18,18,14,50,26,30,30,1,14,29,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+
+	static final int LPS_TABLE_SIZE = 64 * 4;
+	static final int LPS_TABLE_BITS = 8;
+	private static final double c_lpsTable[] = { 128, 176, 208, 240, 128, 167,
+		197, 227, 128, 158, 187, 216, 123, 150, 178, 205, 116, 142, 169,
+		195, 111, 135, 160, 185, 105, 128, 152, 175, 100, 122, 144, 166,
+		95, 116, 137, 158, 90, 110, 130, 150, 85, 104, 123, 142, 81, 99,
+		117, 135, 77, 94, 111, 128, 73, 89, 105, 122, 69, 85, 100, 116, 66,
+		80, 95, 110, 62, 76, 90, 104, 59, 72, 86, 99, 56, 69, 81, 94, 53,
+		65, 77, 89, 51, 62, 73, 85, 48, 59, 69, 80, 46, 56, 66, 76, 43, 53,
+		63, 72, 41, 50, 59, 69, 39, 48, 56, 65, 37, 45, 54, 62, 35, 43, 51,
+		59, 33, 41, 48, 56, 32, 39, 46, 53, 30, 37, 43, 50, 29, 35, 41, 48,
+		27, 33, 39, 45, 26, 31, 37, 43, 24, 30, 35, 41, 23, 28, 33, 39, 22,
+		27, 32, 37, 21, 26, 30, 35, 20, 24, 29, 33, 19, 23, 27, 31, 18, 22,
+		26, 30, 17, 21, 25, 28, 16, 20, 23, 27, 15, 19, 22, 25, 14, 18, 21,
+		24, 14, 17, 20, 23, 13, 16, 19, 22, 12, 15, 18, 21, 12, 14, 17, 20,
+		11, 14, 16, 19, 11, 13, 15, 18, 10, 12, 15, 17, 10, 12, 14, 16, 9,
+		11, 13, 15, 9, 11, 12, 14, 8, 10, 12, 14, 8, 9, 11, 13, 7, 9, 11,
+		12, 7, 9, 10, 12, 7, 8, 10, 11, 6, 8, 9, 11, 6, 7, 9, 10, 6, 7, 8,
+		9, 2, 2, 2, 2 };
+
+	static final int NEXT_STATE_TABLE_SIZE = 128 * 2;
+	static final int NEXT_STATE_BITS = 7;
+	private static final double c_nextState[] = { 2, 1, 0, 3, 4, 0, 1, 5, 6, 2,
+		3, 7, 8, 4, 5, 9, 10, 4, 5, 11, 12, 8, 9, 13, 14, 8, 9, 15, 16, 10,
+		11, 17, 18, 12, 13, 19, 20, 14, 15, 21, 22, 16, 17, 23, 24, 18, 19,
+		25, 26, 18, 19, 27, 28, 22, 23, 29, 30, 22, 23, 31, 32, 24, 25, 33,
+		34, 26, 27, 35, 36, 26, 27, 37, 38, 30, 31, 39, 40, 30, 31, 41, 42,
+		32, 33, 43, 44, 32, 33, 45, 46, 36, 37, 47, 48, 36, 37, 49, 50, 38,
+		39, 51, 52, 38, 39, 53, 54, 42, 43, 55, 56, 42, 43, 57, 58, 44, 45,
+		59, 60, 44, 45, 61, 62, 46, 47, 63, 64, 48, 49, 65, 66, 48, 49, 67,
+		68, 50, 51, 69, 70, 52, 53, 71, 72, 52, 53, 73, 74, 54, 55, 75, 76,
+		54, 55, 77, 78, 56, 57, 79, 80, 58, 59, 81, 82, 58, 59, 83, 84, 60,
+		61, 85, 86, 60, 61, 87, 88, 60, 61, 89, 90, 62, 63, 91, 92, 64, 65,
+		93, 94, 64, 65, 95, 96, 66, 67, 97, 98, 66, 67, 99, 100, 66, 67,
+		101, 102, 68, 69, 103, 104, 68, 69, 105, 106, 70, 71, 107, 108, 70,
+		71, 109, 110, 70, 71, 111, 112, 72, 73, 113, 114, 72, 73, 115, 116,
+		72, 73, 117, 118, 74, 75, 119, 120, 74, 75, 121, 122, 74, 75, 123,
+		124, 76, 77, 125, 124, 76, 77, 125, 126, 126, 127, 127 };
+
+	static final int NEXT_BITS_TABLE_SIZE = LPS_TABLE_SIZE;
+	static final int NEXT_BITS_BITS = 4;
+	private static final double c_nextBits[] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 2, 1, 1,
+			2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2,
+			2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2,
+			3, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 3, 2, 3, 3,
+			3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+			4, 3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 4, 4, 3, 3, 4, 4, 3, 3, 4, 4,
+			3, 3, 4, 4, 3, 3, 4, 4, 4, 3, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4, 4,
+			4, 4, 4, 4, 4, 4, 4, 4, 5, 4, 4, 4, 5, 4, 4, 4, 5, 4, 4, 4, 5, 4,
+			4, 4, 5, 5, 4, 4, 5, 5, 4, 4, 5, 5, 4, 4, 5, 5, 5, 4, 5, 5, 5, 4,
+			5, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5,
+			5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 6, 5, 5, 6, 6, 5, 5,
+			7, 7, 7, 7 };
+
+	static final int TOTAL_BITS = 64;
+
+	static final int TP_ENC_BIN_____BIT = 0;
+	static final int TP_ENC_BIN_EP__BIT = 1;
+	static final int TP_ENC_BIN_TRM_BIT = 2;
+	static final int TP_ENC_BIN_AP1_BIT = 3;//finish
+	static final int TP_ENC_BIN_SIG_BIT = 4;//bottom finish, write(1,1),
+	static final int TP_ENC_BIN_AP0_BIT = 5;//alignZero
+
+	protected EntropyEncoderV4KernelWithFinish(KernelParameters parameters) {
+		super(parameters);
+
+		Memory<DFEVar> contextTable = mem.alloc(dfeUInt(7), CONTEXT_TABLE_SIZE);
+		contextTable.mapToCPU("contextTable");
+		//int ctxTableAddrBits = MathUtils.bitsToAddress(CONTEXT_TABLE_SIZE);
+		Memory<DFEVar> lpsTable = mem.alloc(dfeUInt(8), LPS_TABLE_SIZE);
+		lpsTable.setContents(c_lpsTable);
+		//int lpsTableAddrBits = MathUtils.bitsToAddress(LPS_TABLE_SIZE);
+		Memory<DFEVar> nextStateTable = mem.alloc(dfeUInt(7), NEXT_STATE_TABLE_SIZE);
+		nextStateTable.setContents(c_nextState);
+		int nextStateTableAddrBits = MathUtils.bitsToAddress(NEXT_STATE_TABLE_SIZE);
+		//Memory<DFEVar> nextBitsTable = mem.alloc(dfeUInt(4), NEXT_BITS_TABLE_SIZE);
+		//nextBitsTable.setContents(c_nextBits);
+		//int nextBitsTableAddrBits = MathUtils.bitsToAddress(NEXT_BITS_TABLE_SIZE);
+		Memory<DFEVar> stateTable = mem.alloc(dfeRawBits(TOTAL_BITS), 2);
+		stateTable.mapToCPU("stateTable");
+		//int stateTableAddrBits = MathUtils.bitsToAddress(TOTAL_BITS);
+
+		DFEVar ticks = control.count.simpleCounter(32);
+		OffsetExpr loopLength = stream.makeOffsetAutoLoop("loopLength");
+		DFEVar loopLengthVal = loopLength.getDFEVar(this, dfeUInt(8));
+		DFEVar count = control.count.simpleCounter(8, loopLengthVal+1);
+		DFEVar isRead = count.eq(0);
+		DFEVar isWrite = count.eq(loopLengthVal);
+		//debug.simPrintf("[%8d : %5d]\n", ticks,count);
+
+		DFEVar input = io.input("input", dfeUInt(32), isRead);
+		DFEVar ctxIdx = input.slice(0, 8).cast(dfeUInt(8));
+		DFEVar binValue = input.slice(8, 1).cast(dfeUInt(1));
+		DFEVar etpy = input.slice(9, 7).cast(dfeUInt(7));
+
+		DFEVar etpyIsBin = etpy.slice(TP_ENC_BIN_____BIT,1).cast(dfeBool());
+		DFEVar etpyIsEP_ = etpy.slice(TP_ENC_BIN_EP__BIT,1).cast(dfeBool());
+		DFEVar etpyIsTRM = etpy.slice(TP_ENC_BIN_TRM_BIT,1).cast(dfeBool());
+		DFEVar etpyIsAP1 = etpy.slice(TP_ENC_BIN_AP1_BIT,1).cast(dfeBool());
+		DFEVar etpyIsSIG = etpy.slice(TP_ENC_BIN_SIG_BIT,1).cast(dfeBool());
+		DFEVar etpyIsAP0 = etpy.slice(TP_ENC_BIN_AP0_BIT,1).cast(dfeBool());
+		//DFEVar etpyIs_02 = etpyIsBin | etpyIsTRM;
+		//DFEVar etpyIs_12 = etpyIsEP_ | etpyIsTRM;
+		//DFEVar etpyIs_13 = etpyIsEP_ | etpyIsAP1;
+		//DFEVar etpyIs_35 = etpyIsAP1 | etpyIsAP0;
+		//DFEVar etpyIs_45 = etpyIsSIG | etpyIsAP0;
+
+		DFEVar ctxWriteEnable = etpyIsBin & isWrite;
+		DFEVar afterCtx = dfeUInt(CONTEXT_TABLE_BITS).newInstance(this);
+		DFEVar afterCtxWithOffset = stream.offset(afterCtx, -loopLength);
+		DFEVar mstate = etpyIsBin ? contextTable.port(ctxIdx, afterCtxWithOffset, ctxWriteEnable, Mem.RamWriteMode.READ_FIRST) : 0;
+		DFEVar ctxRomAddr = mstate.cat(binValue).cast(dfeUInt(nextStateTableAddrBits));
+		afterCtx <== nextStateTable.read(ctxRomAddr);
+
+		DFEVar afterState = dfeRawBits(TOTAL_BITS).newInstance(this);
+		DFEVar afterStateWithOffset = stream.offset(afterState, -loopLength);
+		DFEVar beforeState = stateTable.port(constant.var(dfeUInt(1),0), afterStateWithOffset, isWrite, Mem.RamWriteMode.READ_FIRST);
+
+		DFEVar mpsBit = mstate.slice(0,1).cast(dfeUInt(1));
+		DFEVar state = mstate.slice(1,6).cast(dfeUInt(6));
+		DFEVar ivlLow = beforeState.slice(0,32).cast(dfeUInt(32));
+		DFEVar ivlCurrRange = beforeState.slice(32,9).cast(dfeUInt(9));
+		DFEVar bitsLeft = beforeState.slice(41,6).cast(dfeInt(6));
+		DFEVar numBufferedBytes = beforeState.slice(47,3).cast(dfeUInt(3));
+		DFEVar bufferedByte = beforeState.slice(50,9).cast(dfeUInt(9));
+		DFEVar qRangeIdx = ivlCurrRange.slice(6,2);
+		DFEVar bothTableIdx = state.cat(qRangeIdx);
+		DFEVar lpsTableOut = lpsTable.read(bothTableIdx);
+
+
+		DFEVar bitMatch = etpyIsBin ? (mpsBit^binValue) : binValue > 0;
+		DFEVar lpsRange = etpyIsBin ? constant.var(dfeUInt(1),0).cat(lpsTableOut).cast(dfeUInt(9)) : (etpyIsEP_ ? constant.var(dfeUInt(9),0) : constant.var(dfeUInt(9),2));
+		DFEVar mpsRange = (ivlCurrRange-lpsRange).cast(dfeUInt(9));
+		DFEVar range_1 = etpyIsEP_ ? ivlCurrRange : (bitMatch ? (lpsRange) : (mpsRange));
+		DFEVar low_0 = etpyIsEP_? ivlLow.shiftLeft(1).cast(dfeUInt(32)) : ivlLow;
+		DFEVar low_1 = (bitMatch ? (low_0+mpsRange.cast(dfeUInt(32))) : (low_0));
+
+
+		DFEVar logFloor = dfeInt(6).newInstance(this, 0);
+		for(int i=8; i>=0; i--){
+			logFloor = lpsRange.slice(i, 1) ?  max(logFloor, constant.var(dfeInt(6), i)): logFloor;
+		}
+
+		DFEVar lowNumBits1 = etpyIsEP_ ? constant.var(dfeInt(6), 0) : (bitMatch ? (etpyIsTRM ? (constant.var(dfeInt(6), 7)):(state>=63 ? constant.var(dfeInt(6), 6):(8 - logFloor))):(range_1 < 256 ? constant.var(dfeInt(6), 1):constant.var(dfeInt(6), 0)));
+		DFEVar rangeNumBits = lowNumBits1;
+		DFEVar bitsLeftNumBits = etpyIsEP_ ? constant.var(dfeInt(6), 1) : lowNumBits1;
+
+		DFEVar low_next = low_1.shiftLeft(lowNumBits1.cast(dfeUInt(6)));
+		DFEVar range_next = range_1.shiftLeft(rangeNumBits.cast(dfeUInt(4)));
+		DFEVar bitsLeft_next = bitsLeft + bitsLeftNumBits;
+
+
+		DFEVar processFlag = bitsLeft_next >= 0;
+		DFEVar leadByte = (low_next >> (13 + bitsLeft_next).cast(dfeUInt(6))).cast(dfeUInt(9));
+		DFEVar low_next2_candidate_part_part2 = ((19-bitsLeft_next).cast(dfeUInt(6)));
+		DFEVar low_next2_candidate_part_part1 = constant.var(dfeUInt(32), dfeUInt(32).getMax());
+		DFEVar low_next2_candidate_part = low_next2_candidate_part_part1.shiftRight(low_next2_candidate_part_part2);
+		DFEVar low_next2_candidate = (low_next & low_next2_candidate_part);
+		DFEVar low_next2 = processFlag ? low_next2_candidate: low_next;
+		DFEVar bitsLeft_next2 = processFlag ? (bitsLeft_next - 8) : bitsLeft_next;
+
+		DFEVar case1Flag = processFlag & (leadByte.eq(dfeUInt(8).getMax()));
+		DFEVar case2Flag = processFlag & (leadByte.neq(dfeUInt(8).getMax()));
+		DFEVar case3Flag = (case2Flag | etpyIsAP1 | etpyIsSIG) & numBufferedBytes > 0;
+
+		DFEVar numOfBits = 13 + bitsLeft + 1;
+		DFEVar bits = ivlLow.shiftRight(8).shiftLeft(1)+1;
+		DFEVar numBufferedBytes_next = case1Flag ? numBufferedBytes + 1 : (etpyIsSIG ? numOfBits.shiftRight(3).cast(dfeUInt(3)):numBufferedBytes);
+		DFEVar numOfRemainingBits = (numOfBits - 8 * numBufferedBytes_next.cast(dfeInt(6))).cast(dfeUInt(4));
+		DFEVar carry = etpyIsSIG ? 0 :(leadByte >> 8).cast(dfeUInt(9));
+		DFEVar bitsWithoutRemaining = bits.shiftRight(numOfRemainingBits);
+		DFEVar bufferedByte_next = etpyIsSIG ? bitsWithoutRemaining.shiftRight(8*(numBufferedBytes-1)).cast(dfeUInt(9)) : bufferedByte;
+		DFEVar output0Byte = etpyIsAP0 ? bufferedByte:((bufferedByte_next + carry).cast(dfeUInt(9)));
+		DFEVar hasOutput0Flag = etpyIsAP0 ? (bufferedByte.eq(0) ? constant.var(dfeUInt(32), 0) : constant.var(dfeUInt(32), 1)) :case3Flag.cast(dfeUInt(32));
+
+		io.output("output0", output0Byte.cast(dfeUInt(32)) , dfeUInt(32), isRead);
+		io.output("hasOutput0", hasOutput0Flag, dfeUInt(32), isRead);
+
+		DFEVar byte2write = ((constant.var(dfeUInt(9), dfeUInt(8).getMax()) + carry) & 0x1ff).cast(dfeUInt(32));
+
+		DFEVar numOutput1 = case3Flag & (numBufferedBytes_next > 1) ? (etpyIsSIG ? 1 : (numBufferedBytes_next-1)) : 0;
+		DFEVar numBufferedBytes_next_1 = case3Flag ? (etpyIsSIG ? numBufferedBytes_next-1 : 1 ): numBufferedBytes_next;
+		DFEVar byte2write_1 = etpyIsSIG ? bitsWithoutRemaining.shiftRight(8*(numBufferedBytes_next_1-1)) : byte2write;
+		io.output("output1", byte2write_1.cast(dfeUInt(32)), dfeUInt(32), isRead);
+		io.output("numOutput1", numOutput1.cast(dfeUInt(32)), dfeUInt(32), isRead);
+
+		DFEVar case4Flag_2 = case3Flag & (numBufferedBytes_next_1 > 1);
+		DFEVar numBufferedBytes_next_2 = case4Flag_2 ? numBufferedBytes_next_1-1 : numBufferedBytes_next_1;
+		DFEVar byte2write_2 = etpyIsSIG ? bitsWithoutRemaining.shiftRight(8*(numBufferedBytes_next_2-1)) : byte2write;
+		io.output("output2", byte2write_2.cast(dfeUInt(32)), dfeUInt(32), isRead);
+		io.output("hasOutput2", case4Flag_2.cast(dfeUInt(32)), dfeUInt(32), isRead);
+
+		DFEVar case4Flag_3 = case3Flag & (numBufferedBytes_next_2 > 1);
+		DFEVar numBufferedBytes_next_3 = case4Flag_3 ? numBufferedBytes_next_2-1 : numBufferedBytes_next_2;
+		DFEVar byte2write_3 = etpyIsSIG ? bitsWithoutRemaining.shiftRight(8*(numBufferedBytes_next_3-1)) : byte2write;
+		io.output("output3", byte2write_3.cast(dfeUInt(32)), dfeUInt(32), isRead);
+		io.output("hasOutput3", case4Flag_3.cast(dfeUInt(32)), dfeUInt(32), isRead);
+
+		/*DFEVar case4Flag_4 = case3Flag & (numBufferedBytes_next_3 > 1);
+		DFEVar numBufferedBytes_next_4 = case4Flag_4 ? numBufferedBytes_next_3-1 : numBufferedBytes_next_3;
+		io.output("output4", byte2write.cast(dfeUInt(32)), dfeUInt(32), isRead);
+		io.output("hasOutput4", case4Flag_4.cast(dfeUInt(32)), dfeUInt(32), isRead);*/
+
+		DFEVar numBufferedBytes_next_5 = case2Flag ? 1 : numBufferedBytes_next_3;
+		DFEVar bufferedByte_next1 = case2Flag ?  (leadByte & 0x1ff) : bufferedByte_next;
+		DFEVar bufferedByte_next2 = etpyIsSIG ?  (bits.shiftLeft(8-numOfRemainingBits) & (0x0ff)).cast(dfeUInt(9)) : (etpyIsAP1 ? bufferedByte : bufferedByte_next1);
+		DFEVar low_next3_part1 = constant.var(dfeUInt(32), 1).shiftLeft((21 + bitsLeft).cast(dfeUInt(6)));
+		//DFEVar low_next3 = (etpyIsAP1 & (carry > 0)) ? (low_next2 - low_next3_part1) : low_next2;
+		DFEVar low_next3 = (etpyIsAP1) ? (carry > 1 ? (ivlLow - low_next3_part1) : ivlLow): low_next2;
+		DFEVar bitsLeft_next3 = etpyIsAP1 ? bitsLeft : bitsLeft_next2;
+
+		afterState <== constant.var(dfeUInt(5),0).cat(bufferedByte_next2).cat(numBufferedBytes_next_5).cat(bitsLeft_next3).cat(range_next).cat(low_next3);
+
+	}
+
+	public DFEVar max(DFEVar a , DFEVar b){
+		return a > b ? a :b;
+	}
+
+}
