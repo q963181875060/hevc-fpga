@@ -32,9 +32,22 @@ public class TEncSbacManager extends CustomManager {
 		InterfaceParam N = engine_interface.addParam("N", CPUTypes.INT);
 		InterfaceParam loopLength = engine_interface.getAutoLoopOffset(s_kernelName, "loopLength");
 
+		InterfaceParam compId = engine_interface.addParam("compId", CPUTypes.INT32);
+		InterfaceParam width = engine_interface.addParam("width", CPUTypes.INT32);
+		InterfaceParam scanFirstPos = engine_interface.addParam("scanFirstPos", CPUTypes.INT32);
+		InterfaceParam sigRight = engine_interface.addParam("sigRight", CPUTypes.INT32);
+		InterfaceParam sigLower = engine_interface.addParam("sigLower", CPUTypes.INT32);
+
+		engine_interface.setScalar(s_kernelName, "compId", compId);
+		engine_interface.setScalar(s_kernelName, "width", width);
+		engine_interface.setScalar(s_kernelName, "scanFirstPos", scanFirstPos);
+		engine_interface.setScalar(s_kernelName, "sigRight", sigRight);
+		engine_interface.setScalar(s_kernelName, "sigLower", sigLower);
+
 		engine_interface.setTicks(s_kernelName, (N)*(loopLength+1));
 		engine_interface.setStream("input", CPUTypes.INT32, N * CPUTypes.INT32.sizeInBytes());
 		engine_interface.setStream("output", CPUTypes.INT32, N * CPUTypes.INT32.sizeInBytes());
+
 
 		//engine_interface.setStream("ivlLow", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());
 		//engine_interface.setStream("ivlCurrRange", CPUTypes.UINT32, N * CPUTypes.UINT32.sizeInBytes());

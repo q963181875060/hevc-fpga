@@ -2,94 +2,80 @@ package tencsbac;
 
 import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
 import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.CounterChain;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Mem;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Stream.OffsetExpr;
 import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.memory.Memory;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEType;
 import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
 
 class TEncSbacKernel extends Kernel {
 
-	static final int CONTEXT_TABLE_SIZE = 202;
-	static final int CONTEXT_TABLE_BITS = 7;
-
-	private static final double c_initContextTable[] = {2,29,49,1,1,1,1,1,9,1,1,1,1,9,38,2,1,1,1,1,1,1,1,1,1,1,1,1,21,29,1,1,1,14,18,22,1,1,14,18,18,1,62,37,82,29,21,21,9,5,5,14,6,26,6,42,9,29,70,14,9,42,9,29,70,14,9,42,9,29,70,14,9,29,13,2,22,22,30,50,30,50,14,50,2,21,50,2,21,21,5,5,6,9,13,14,9,41,13,10,21,61,41,21,18,26,22,38,1,1,1,1,1,1,1,1,1,1,1,1,5,5,6,9,13,14,9,41,13,10,21,61,41,21,18,26,22,38,1,1,1,1,1,1,1,1,1,1,1,1,13,46,34,18,13,30,18,2,14,98,78,46,2,42,38,30,13,70,42,22,13,10,38,18,18,14,50,26,30,30,1,14,29,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
-
-	static final int LPS_TABLE_SIZE = 64 * 4;
-	static final int LPS_TABLE_BITS = 8;
-	private static final double c_lpsTable[] = { 128, 176, 208, 240, 128, 167,
-		197, 227, 128, 158, 187, 216, 123, 150, 178, 205, 116, 142, 169,
-		195, 111, 135, 160, 185, 105, 128, 152, 175, 100, 122, 144, 166,
-		95, 116, 137, 158, 90, 110, 130, 150, 85, 104, 123, 142, 81, 99,
-		117, 135, 77, 94, 111, 128, 73, 89, 105, 122, 69, 85, 100, 116, 66,
-		80, 95, 110, 62, 76, 90, 104, 59, 72, 86, 99, 56, 69, 81, 94, 53,
-		65, 77, 89, 51, 62, 73, 85, 48, 59, 69, 80, 46, 56, 66, 76, 43, 53,
-		63, 72, 41, 50, 59, 69, 39, 48, 56, 65, 37, 45, 54, 62, 35, 43, 51,
-		59, 33, 41, 48, 56, 32, 39, 46, 53, 30, 37, 43, 50, 29, 35, 41, 48,
-		27, 33, 39, 45, 26, 31, 37, 43, 24, 30, 35, 41, 23, 28, 33, 39, 22,
-		27, 32, 37, 21, 26, 30, 35, 20, 24, 29, 33, 19, 23, 27, 31, 18, 22,
-		26, 30, 17, 21, 25, 28, 16, 20, 23, 27, 15, 19, 22, 25, 14, 18, 21,
-		24, 14, 17, 20, 23, 13, 16, 19, 22, 12, 15, 18, 21, 12, 14, 17, 20,
-		11, 14, 16, 19, 11, 13, 15, 18, 10, 12, 15, 17, 10, 12, 14, 16, 9,
-		11, 13, 15, 9, 11, 12, 14, 8, 10, 12, 14, 8, 9, 11, 13, 7, 9, 11,
-		12, 7, 9, 10, 12, 7, 8, 10, 11, 6, 8, 9, 11, 6, 7, 9, 10, 6, 7, 8,
-		9, 2, 2, 2, 2 };
-
-	static final int NEXT_STATE_TABLE_SIZE = 128 * 2;
-	static final int NEXT_STATE_BITS = 7;
-	private static final double c_nextState[] = { 2, 1, 0, 3, 4, 0, 1, 5, 6, 2,
-		3, 7, 8, 4, 5, 9, 10, 4, 5, 11, 12, 8, 9, 13, 14, 8, 9, 15, 16, 10,
-		11, 17, 18, 12, 13, 19, 20, 14, 15, 21, 22, 16, 17, 23, 24, 18, 19,
-		25, 26, 18, 19, 27, 28, 22, 23, 29, 30, 22, 23, 31, 32, 24, 25, 33,
-		34, 26, 27, 35, 36, 26, 27, 37, 38, 30, 31, 39, 40, 30, 31, 41, 42,
-		32, 33, 43, 44, 32, 33, 45, 46, 36, 37, 47, 48, 36, 37, 49, 50, 38,
-		39, 51, 52, 38, 39, 53, 54, 42, 43, 55, 56, 42, 43, 57, 58, 44, 45,
-		59, 60, 44, 45, 61, 62, 46, 47, 63, 64, 48, 49, 65, 66, 48, 49, 67,
-		68, 50, 51, 69, 70, 52, 53, 71, 72, 52, 53, 73, 74, 54, 55, 75, 76,
-		54, 55, 77, 78, 56, 57, 79, 80, 58, 59, 81, 82, 58, 59, 83, 84, 60,
-		61, 85, 86, 60, 61, 87, 88, 60, 61, 89, 90, 62, 63, 91, 92, 64, 65,
-		93, 94, 64, 65, 95, 96, 66, 67, 97, 98, 66, 67, 99, 100, 66, 67,
-		101, 102, 68, 69, 103, 104, 68, 69, 105, 106, 70, 71, 107, 108, 70,
-		71, 109, 110, 70, 71, 111, 112, 72, 73, 113, 114, 72, 73, 115, 116,
-		72, 73, 117, 118, 74, 75, 119, 120, 74, 75, 121, 122, 74, 75, 123,
-		124, 76, 77, 125, 124, 76, 77, 125, 126, 126, 127, 127 };
-
-	static final int NEXT_BITS_TABLE_SIZE = LPS_TABLE_SIZE;
-	static final int NEXT_BITS_BITS = 4;
-	private static final double c_nextBits[] = { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-			1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 2, 1, 1,
-			2, 2, 1, 1, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2,
-			2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2,
-			3, 2, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 2, 2, 3, 3, 3, 2, 3, 3,
-			3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-			4, 3, 3, 3, 4, 3, 3, 3, 4, 3, 3, 3, 4, 4, 3, 3, 4, 4, 3, 3, 4, 4,
-			3, 3, 4, 4, 3, 3, 4, 4, 4, 3, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4, 4,
-			4, 4, 4, 4, 4, 4, 4, 4, 5, 4, 4, 4, 5, 4, 4, 4, 5, 4, 4, 4, 5, 4,
-			4, 4, 5, 5, 4, 4, 5, 5, 4, 4, 5, 5, 4, 4, 5, 5, 5, 4, 5, 5, 5, 4,
-			5, 5, 5, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 5,
-			5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 6, 6, 5, 5, 6, 6, 5, 5,
-			7, 7, 7, 7 };
+	DFEType int32 = dfeInt(32);
+	DFEType uint32 = dfeUInt(32);
 
 	static final int TOTAL_BITS = 64;
 
 	static final int TP_ENC_BIN_____BIT = 0;
-	static final int TP_ENC_BIN_EP__BIT = 1;
+	static final int TP_ENC_BINS_EP_BIT = 1;
 	static final int TP_ENC_BIN_TRM_BIT = 2;
 	static final int TP_ENC_BIN_AP1_BIT = 3;//finish
 	static final int TP_ENC_BIN_SIG_BIT = 4;//bottom finish, write(1,1),
 	static final int TP_ENC_BIN_AP0_BIT = 5;//alignZero
 
+
+	static final int ENCODE_TYPE_WIDTH = 3;//alignZero
+	static final int ENCODE_VAL__WIDTH = 21;//alignZero
+	static final int ENCODE_CTX__WIDTH = 8;//alignZero
+
 	protected TEncSbacKernel(KernelParameters parameters) {
 		super(parameters);
+
+		//scalar inputs
+		DFEVar compId = io.scalarInput("compId", int32);
+		DFEVar width = io.scalarInput("width", int32);
+		DFEVar scanFirstPos = io.scalarInput("scanFirstPos", int32);
+		DFEVar sigRight = io.scalarInput("sigRight", int32);
+		DFEVar sigLower = io.scalarInput("sigLower", int32);
 
 		Memory<DFEVar> loopVaraiblesTable = mem.alloc(dfeRawBits(TOTAL_BITS), 2);
 		loopVaraiblesTable.mapToCPU("loopVaraiblesTable");
 
+		Memory<DFEVar> scan_32 = mem.alloc(dfeRawBits(TOTAL_BITS), 1024);
+		scan_32.mapToCPU("scan_32");
+
+		Memory<DFEVar> scan_16 = mem.alloc(dfeRawBits(TOTAL_BITS), 256);
+		scan_16.mapToCPU("scan_16");
+
+		Memory<DFEVar> notFirstGroupNeighbourhoodContextOffset = mem.alloc(dfeRawBits(TOTAL_BITS), 2);
+		notFirstGroupNeighbourhoodContextOffset.mapToCPU("notFirstGroupNeighbourhoodContextOffset");
+
+		Memory<DFEVar> coded_sub_block_flag_buffer = mem.alloc(dfeRawBits(TOTAL_BITS), 2);
+		coded_sub_block_flag_buffer.mapToCPU("coded_sub_block_flag_buffer");
+
+		Memory<DFEVar> sig_coeff_flag_buffer = mem.alloc(dfeRawBits(TOTAL_BITS), 16);
+		sig_coeff_flag_buffer.mapToCPU("sig_coeff_flag_buffer");
+
+		Memory<DFEVar> coeff_abs_level_greater1_flag_buffer = mem.alloc(dfeRawBits(TOTAL_BITS), 8);
+		coeff_abs_level_greater1_flag_buffer.mapToCPU("coeff_abs_level_greater1_flag_buffer");
+
+		Memory<DFEVar> coeff_abs_level_greater2_flag_buffer = mem.alloc(dfeRawBits(TOTAL_BITS), 2);
+		coeff_abs_level_greater2_flag_buffer.mapToCPU("coeff_abs_level_greater2_flag_buffer");
+
+		Memory<DFEVar> coeff_sign_flag_buffer = mem.alloc(dfeRawBits(TOTAL_BITS), 2);
+		coeff_sign_flag_buffer.mapToCPU("coeff_sign_flag_buffer");
+
+		Memory<DFEVar> coeff_abs_level_remaining_buffer = mem.alloc(dfeRawBits(TOTAL_BITS), 16);
+		coeff_abs_level_remaining_buffer.mapToCPU("coeff_abs_level_remaining_buffer");
 
 		OffsetExpr loopLength = stream.makeOffsetAutoLoop("loopLength");
 		DFEVar loopLengthVal = loopLength.getDFEVar(this, dfeUInt(8));
-		DFEVar count = control.count.simpleCounter(8, loopLengthVal+1);
-		DFEVar isRead = count.eq(0);
-		DFEVar isWrite = count.eq(loopLengthVal);
+		CounterChain chain = control.count.makeCounterChain();
+		DFEVar inputCounter = chain.addCounter(16, 1);
+		DFEVar loopCount = chain.addCounter(loopLengthVal+1, 1);
+
+		DFEVar isRead = loopCount.eq(0);
+		DFEVar isWrite = loopCount.eq(loopLengthVal);
 
 		DFEVar input = io.input("input", dfeInt(32),isRead);
 
@@ -97,16 +83,143 @@ class TEncSbacKernel extends Kernel {
 		DFEVar afterLoopVariablesWithOffset = stream.offset(afterLoopVariables, -loopLength);
 		DFEVar beforeLoopVariables = loopVaraiblesTable.port(constant.var(dfeUInt(1),0), afterLoopVariablesWithOffset, isWrite, Mem.RamWriteMode.READ_FIRST);
 
-		DFEVar num_non_zero  = beforeLoopVariables.slice(0, 5).cast(dfeUInt(5))+1;
+		//Get the loop variables
+		DFEVar numNonZero  = beforeLoopVariables.slice(0, 5).cast(dfeUInt(5));
 		DFEVar c1 = beforeLoopVariables.slice(5,2).cast(dfeUInt(2));
 		DFEVar hasOutput_coeff_abs_level_greater2_flag = beforeLoopVariables.slice(7, 1).cast(dfeUInt(1));
 		DFEVar coeffSigns = beforeLoopVariables.slice(8, 16).cast(dfeUInt(16));
 		DFEVar iFirstCoeff2 = beforeLoopVariables.slice(24, 1).cast(dfeUInt(1));
 		DFEVar uiGoRiceParam = beforeLoopVariables.slice(25, 3).cast(dfeUInt(3));
 
-		io.output("output",input.cast(dfeInt(32)) + num_non_zero.cast(dfeInt(32)), dfeInt(32), isWrite);
+		DFEVar numNonZero_1 = (input.eq(0) ? numNonZero : numNonZero + 1);
 
-		afterLoopVariables <== constant.var(dfeUInt(36), 0).cat(uiGoRiceParam).cat(iFirstCoeff2).cat(coeffSigns).cat(hasOutput_coeff_abs_level_greater2_flag).cat(c1).cat(num_non_zero);
+		//flag format:  EncodeType: 3bits --> EncodeValue: 21 bits --> ctxIdx/len: 8 bits
+
+		//编码coded_sub_block_flag
+		DFEVar isLastInput = inputCounter.eq(15);
+		DFEVar base_coeff_group_ctx_idx = compId.eq(0) ? constant.var(dfeUInt(ENCODE_CTX__WIDTH), 42) : constant.var(dfeUInt(ENCODE_CTX__WIDTH), 44);
+		DFEVar ui_ctx_sig = (sigRight + sigLower).neq(0).cast(dfeUInt(ENCODE_CTX__WIDTH));
+		DFEVar coded_sub_block_flag_ctx = base_coeff_group_ctx_idx + ui_ctx_sig;
+		DFEVar coded_sub_block_flag_encode_type = constant.var(dfeUInt(ENCODE_TYPE_WIDTH), TP_ENC_BIN_____BIT);
+		DFEVar coded_sub_block_flag_val = (numNonZero_1 > 0).cast(dfeUInt(ENCODE_VAL__WIDTH));
+		DFEVar coded_sub_block_flag = constant.var(int32, 0).cat(coded_sub_block_flag_encode_type.cat(coded_sub_block_flag_val).cat(coded_sub_block_flag_ctx));
+		coded_sub_block_flag_buffer.port(constant.var(dfeUInt(1), 0), coded_sub_block_flag, isLastInput & isRead, Mem.RamWriteMode.WRITE_FIRST);
+
+		//编码sig_coeff_flag
+		DFEVar ui_sig = input.neq(0);
+		DFEVar base_ctx_idx = constant.var(dfeUInt(ENCODE_CTX__WIDTH), 46) + ((compId.eq(0))? constant.var(dfeUInt(ENCODE_CTX__WIDTH), 0): 28);
+		DFEVar pattern_sig_ctx = sigRight + sigLower.shiftLeft(1);
+		DFEVar scan_current_pos = scanFirstPos.cast(dfeUInt(10)) - inputCounter.cast(dfeUInt(10));//当前的对角扫描的位置
+		DFEVar rasterPosition_pre = (width.eq(32)) ? scan_32.read(scan_current_pos.cast(dfeUInt(10))): scan_16.read(scan_current_pos.cast(dfeUInt(8))) ;//当前的顺序扫描的位置
+		DFEVar rasterPosition = rasterPosition_pre.slice(0, 32).cast(dfeUInt(32));
+		DFEVar uiLog2BlockWidth = (width.eq(32)) ? constant.var(dfeUInt(3), 5) : 4;
+		DFEVar pos_y = rasterPosition.shiftRight(uiLog2BlockWidth);
+		DFEVar pos_x = rasterPosition - (pos_y.shiftLeft(uiLog2BlockWidth));
+		DFEVar is_special_case_for_dc = (pos_y + pos_x) === 0;
+		DFEVar is_case_0 = pattern_sig_ctx === 0;
+		DFEVar is_case_1 = pattern_sig_ctx === 1;
+		DFEVar is_case_2 = pattern_sig_ctx === 2;
+		DFEVar is_case_3 = pattern_sig_ctx === 3;
+		DFEVar posXinSubset = (is_case_0 | is_case_2) ? pos_x & ((1 << 2)  - 1) : 0;
+		DFEVar posYinSubset = (is_case_0 | is_case_1) ? pos_y & ((1 << 2)  - 1) : 0;
+		DFEVar posTotalInSubset = posXinSubset + posYinSubset;
+		int groupHeight  = 1 << 2;
+		int groupWidth   = 1 << 2;
+		DFEVar cnt_0 = is_case_0 ? ((posTotalInSubset >= 3) ? 0 : ((posTotalInSubset >= 1) ? constant.var(dfeUInt(ENCODE_CTX__WIDTH), 1) : 2)) : 0;
+		DFEVar cnt_1 = is_case_1 ? ((posYinSubset >= (groupHeight >> 1)) ? 0 : ((posYinSubset >= (groupHeight >> 2)) ? constant.var(dfeUInt(ENCODE_CTX__WIDTH),1) : 2)): cnt_0;
+		DFEVar cnt_2 = is_case_2 ? ((posXinSubset >= (groupWidth >> 1)) ? 0 : ((posXinSubset >= (groupWidth >> 2)) ? constant.var(dfeUInt(ENCODE_CTX__WIDTH),1)  : 2)) : cnt_1;
+		DFEVar cnt = (is_case_0 | is_case_1 | is_case_2) ? cnt_2 : is_case_3 ? constant.var(dfeUInt(ENCODE_CTX__WIDTH), 2) : 0;
+		DFEVar notFirstGroup = ((pos_x >> 2) + (pos_y >> 2)) > 0;
+		DFEVar offset = (notFirstGroup ? notFirstGroupNeighbourhoodContextOffset.read(compId.cast(dfeUInt(1))).slice(0, ENCODE_CTX__WIDTH).cast(dfeUInt(ENCODE_CTX__WIDTH)) : 0) + cnt;
+		DFEVar firstSignificanceMapContext = (width.eq(32)) ? constant.var(dfeUInt(ENCODE_CTX__WIDTH), 21) : 12;
+		DFEVar uiCtxSig1 = is_special_case_for_dc ? 0 : (firstSignificanceMapContext + offset);
+		DFEVar sig_coeff_flag_encode_type = constant.var(dfeUInt(ENCODE_TYPE_WIDTH), TP_ENC_BIN_____BIT);
+		DFEVar sig_coeff_flag_val = ui_sig.cast(dfeUInt(ENCODE_VAL__WIDTH));
+		DFEVar sig_coeff_flag_ctx = base_ctx_idx + uiCtxSig1;
+		DFEVar sig_coeff_flag = constant.var(int32, 0).cat(sig_coeff_flag_encode_type.cat(sig_coeff_flag_val).cat(sig_coeff_flag_ctx));
+		sig_coeff_flag_buffer.port(inputCounter, sig_coeff_flag, isRead, Mem.RamWriteMode.WRITE_FIRST);
+
+		//编码coeff_abs_level_greater1_flag
+		DFEVar absCoeff = (input < 0 ? -input : input).cast(uint32);
+		DFEVar isOutputCoeff_abs_level_greater1_flag = (absCoeff.neq(0) & numNonZero < 8);
+		DFEVar uiSymbol = absCoeff > 1 ? constant.var(dfeUInt(ENCODE_VAL__WIDTH), 1) : 0;
+		DFEVar notFirstSubsetOffset = (compId.eq(0) & (scanFirstPos > 15)) ? constant.var(dfeUInt(ENCODE_CTX__WIDTH), 2) : 0;
+		DFEVar uiCtxSet = (compId === 0 ? constant.var(dfeUInt(ENCODE_CTX__WIDTH), 0):4) + notFirstSubsetOffset;
+		DFEVar baseCtxMod = 150 + (4 * uiCtxSet);
+		DFEVar coeff_abs_level_greater1_flag_encode_type = constant.var(dfeUInt(ENCODE_TYPE_WIDTH), TP_ENC_BIN_____BIT);
+		DFEVar coeff_abs_level_greater1_flag_val = uiSymbol;
+		DFEVar coeff_abs_level_greater1_flag_ctx = baseCtxMod + c1.cast(dfeUInt(ENCODE_CTX__WIDTH));
+		DFEVar coeff_abs_level_greater1_flag = constant.var(int32, 0).cat(coeff_abs_level_greater1_flag_encode_type.cat(coeff_abs_level_greater1_flag_val).cat(coeff_abs_level_greater1_flag_ctx));
+		coeff_abs_level_greater1_flag_buffer.port(inputCounter.cast(dfeUInt(3)), coeff_abs_level_greater1_flag, isOutputCoeff_abs_level_greater1_flag & isRead, Mem.RamWriteMode.WRITE_FIRST);
+		DFEVar isBranch1 = (uiSymbol === 1) & isOutputCoeff_abs_level_greater1_flag;
+		DFEVar isBranch4 = isOutputCoeff_abs_level_greater1_flag & (c1 < 3) & (c1 > 0);
+		DFEVar c1_1 = (isBranch1 ? 0 : (isBranch4 ? c1+1: c1));
+		DFEVar firstC2Flag = isBranch1;
+
+		//编码coeff_abs_level_greater2_flag,是否存在这个编码取决于coeff_abs_level_greater1_flag是否存在1
+		DFEVar symbol = absCoeff > 2 ? constant.var(dfeUInt(ENCODE_VAL__WIDTH), 1) : 0;
+		DFEVar isBranch5 = (firstC2Flag & hasOutput_coeff_abs_level_greater2_flag === 0);
+		DFEVar hasOutput_coeff_abs_level_greater2_flag_1 = (hasOutput_coeff_abs_level_greater2_flag === 1) ? 1 : isBranch5 ? constant.var(dfeUInt(1),1) : 0;
+		DFEVar baseCtxMod_1 = 174 + (1 * uiCtxSet);
+		DFEVar coeff_abs_level_greater2_flag_encode_type = constant.var(dfeUInt(ENCODE_TYPE_WIDTH), TP_ENC_BIN_____BIT);
+		DFEVar coeff_abs_level_greater2_flag_val = symbol;
+		DFEVar coeff_abs_level_greater2_flag_ctx = baseCtxMod_1;
+		DFEVar coeff_abs_level_greater2_flag = constant.var(int32, 0).cat(coeff_abs_level_greater2_flag_encode_type.cat(coeff_abs_level_greater2_flag_val).cat(coeff_abs_level_greater2_flag_ctx));
+		coeff_abs_level_greater2_flag_buffer.port(constant.var(dfeUInt(1), 0), coeff_abs_level_greater2_flag, isLastInput & isRead, Mem.RamWriteMode.WRITE_FIRST);
+
+		//编码coeff_sign_flag
+		DFEVar inputNotZero = ui_sig === 1;
+		DFEVar coeffSigns_1 = inputNotZero ? (2 * coeffSigns + ((input < 0) ? constant.var(dfeUInt(16), 1) : 0)) : coeffSigns;
+		DFEVar coeff_sign_flag_encode_type = constant.var(dfeUInt(ENCODE_TYPE_WIDTH), TP_ENC_BINS_EP_BIT);
+		DFEVar coeff_sign_flag_val = coeffSigns_1.cast(dfeUInt(ENCODE_VAL__WIDTH));
+		DFEVar coeff_sign_flag_ctx = numNonZero_1.cast(dfeUInt(ENCODE_CTX__WIDTH));
+		DFEVar coeff_sign_flag = constant.var(int32, 0).cat(coeff_sign_flag_encode_type.cat(coeff_sign_flag_val).cat(coeff_sign_flag_ctx));
+		coeff_sign_flag_buffer.port(constant.var(dfeUInt(1), 0), coeff_sign_flag, isLastInput & isRead, Mem.RamWriteMode.WRITE_FIRST);
+
+		//编码coeff_abs_level_remaining
+		DFEVar baseLevel  = (numNonZero < 8)? 2+iFirstCoeff2.cast(uint32) : 1;
+		DFEVar isBranch7 = inputNotZero & absCoeff >= baseLevel;
+		DFEVar isBranch8 = inputNotZero & absCoeff >= 2;
+		DFEVar isBranch9 = isBranch7 & absCoeff > (constant.var(uint32, 3) << uiGoRiceParam);
+		DFEVar escapeCodeValue = absCoeff.cast(uint32) - baseLevel;
+		DFEVar isBranch10 = isBranch7 & (escapeCodeValue < (constant.var(uint32, 3) << uiGoRiceParam));
+		DFEVar isBranch11 = isBranch7 & ~(escapeCodeValue < (constant.var(uint32, 3) << uiGoRiceParam));
+		DFEVar length = (isBranch10 ? escapeCodeValue >> uiGoRiceParam : isBranch11 ? uiGoRiceParam.cast(uint32) : 0).cast(dfeUInt(6));
+		int size = 7;
+		DFEVar[] escapeCodeValueArray = new DFEVar[size];
+		DFEVar[] lengthArray = new DFEVar[size];
+		escapeCodeValueArray[0] = escapeCodeValue - (constant.var(uint32, 3) << uiGoRiceParam);
+		lengthArray[0] = length;
+		for(int j=0;j<size-1;j++){
+			DFEVar isWhileTrue = escapeCodeValueArray[j] >= (constant.var(uint32,1)<<lengthArray[j]);
+			lengthArray[j+1] = isWhileTrue ? lengthArray[j] + 1 : lengthArray[j];
+			escapeCodeValueArray[j+1] = isWhileTrue ? escapeCodeValueArray[j] - (constant.var(uint32,1)<<(lengthArray[j])) : escapeCodeValueArray[j];
+		}
+		//debug.simPrintf(isRead, "escapeCodeValueArray[0]=%d, uiGoRiceParam=%d, escapeCodeValueArray[size-1]=%d, absCoeff=%d, baseLevel=%d, length[0]=%d, inputCounter=%d, iFirstCoeff2=%d, nonNumZero=%d\n", escapeCodeValueArray[0], uiGoRiceParam, escapeCodeValueArray[size-1], absCoeff, baseLevel, length[0], inputCounter, iFirstCoeff2, numNonZero);
+		DFEVar coeff_abs_level_remaining_part1_val_pre = isBranch10 ? (constant.var(uint32,1)<<(length+1))-2 : isBranch11 ? (constant.var(uint32,1)<<(3+lengthArray[size-1]+1-uiGoRiceParam.cast(dfeUInt(6))))-2 : 0;
+		//debug.simPrintf(isRead, "isBranch10=%d, escapeCodeValue=%d, uiGoRiceParam=%d, absCoeff=%d, baseLevel=%d, length=%d, inputCounter=%d, iFirstCoeff2=%d, nonNumZero=%d\n", isBranch10, escapeCodeValue, uiGoRiceParam, absCoeff, baseLevel, length, inputCounter, iFirstCoeff2, numNonZero);
+		DFEVar coeff_abs_level_remaining_part1_len = isBranch10 ? length+1 : isBranch11 ? 3+lengthArray[size-1]+1-uiGoRiceParam.cast(dfeUInt(6)) : 0;
+		DFEVar coeff_abs_level_remaining_part2_val_pre = isBranch10 ? (escapeCodeValue & ((constant.var(uint32,1)<<uiGoRiceParam) - 1)) : isBranch11 ? escapeCodeValueArray[size-1] : 0;
+		DFEVar coeff_abs_level_remaining_part2_len = isBranch10 ? uiGoRiceParam.cast(dfeUInt(6)) : isBranch11 ? lengthArray[size-1] : 0;
+		DFEVar isOutput_coeff_abs_level_remaining = isBranch10 | isBranch11;
+		DFEVar coeff_abs_level_remaining_part1_encode_type = constant.var(dfeUInt(ENCODE_TYPE_WIDTH), TP_ENC_BINS_EP_BIT);
+		DFEVar coeff_abs_level_remaining_part1_val = coeff_abs_level_remaining_part1_val_pre.cast(dfeUInt(ENCODE_VAL__WIDTH));
+		DFEVar coeff_abs_level_remaining_part1_ctx = coeff_abs_level_remaining_part1_len.cast(dfeUInt(ENCODE_CTX__WIDTH));
+		DFEVar coeff_abs_level_remaining_part1 = coeff_abs_level_remaining_part1_encode_type.cat(coeff_abs_level_remaining_part1_val).cat(coeff_abs_level_remaining_part1_ctx);
+		DFEVar coeff_abs_level_remaining_part2_encode_type = constant.var(dfeUInt(ENCODE_TYPE_WIDTH), TP_ENC_BINS_EP_BIT);
+		DFEVar coeff_abs_level_remaining_part2_val = coeff_abs_level_remaining_part2_val_pre.cast(dfeUInt(ENCODE_VAL__WIDTH));
+		DFEVar coeff_abs_level_remaining_part2_ctx = coeff_abs_level_remaining_part2_len.cast(dfeUInt(ENCODE_CTX__WIDTH));
+		DFEVar coeff_abs_level_remaining_part2 = coeff_abs_level_remaining_part2_encode_type.cat(coeff_abs_level_remaining_part2_val).cat(coeff_abs_level_remaining_part2_ctx);
+		DFEVar coeff_abs_level_remaining = coeff_abs_level_remaining_part1.cat(coeff_abs_level_remaining_part2);
+		coeff_abs_level_remaining_buffer.port(inputCounter, coeff_abs_level_remaining, isOutput_coeff_abs_level_remaining & isRead, Mem.RamWriteMode.WRITE_FIRST);
+		debug.simPrintf(isRead, "inputCounter=%d, part1=%d, part2=%d, coeff_abs_level_remaining=%d\n", inputCounter, coeff_abs_level_remaining_part1, coeff_abs_level_remaining_part2, coeff_abs_level_remaining);
+		DFEVar iFirstCoeff2_1 = isBranch8 ? 0 : iFirstCoeff2;
+		DFEVar uiGoRiceParam_1 = isBranch9 ? (((uiGoRiceParam + 1) < 4) ? (uiGoRiceParam + 1): 4) : uiGoRiceParam;
+
+		io.output("output",input.cast(dfeInt(32)) + numNonZero.cast(dfeInt(32)), dfeInt(32), isRead);
+
+
+		afterLoopVariables <== constant.var(dfeUInt(36), 0).cat(uiGoRiceParam_1).cat(iFirstCoeff2_1).cat(coeffSigns_1).cat(hasOutput_coeff_abs_level_greater2_flag_1).cat(c1_1).cat(numNonZero_1);
 
 
 	}
